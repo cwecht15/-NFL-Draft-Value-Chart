@@ -733,7 +733,8 @@ function handleTrade(pickNumber, isEdit) {
         picksReceived.forEach(p => db.ref(`trades/${p}`).set(newTeam));
       }
 
-      // Rebuild inventory and re-render
+      // Sync trades to Firebase and rebuild
+      syncTrades();
       initPickInventory();
       modal.style.display = 'none';
       renderDraftBoard(currentPicks);
@@ -768,6 +769,7 @@ function handleTrade(pickNumber, isEdit) {
         ft.push({ from: savedTrade.teamFrom, to: savedTrade.teamTo, year: fp.year, round: fp.round, orig: fp.orig });
       });
       localStorage.setItem('draft_future_trades', JSON.stringify(ft));
+      syncTrades();
       initPickInventory();
       renderDraftBoard(currentPicks);
     }
