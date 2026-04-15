@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFL Draft Value Chart 2026</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1>NFL Draft Value Chart 2026</h1>
+    <div class="header-info">
+      <span class="current-pick" id="current-pick-display">Pick #1</span>
+      <span id="sync-status"></span>
+      <button class="btn-refresh" id="refresh-board-btn" title="Pull fresh scores from Google Sheet">Refresh Board</button>
+      <button class="btn-theme" id="theme-toggle" title="Toggle light/dark mode">Light</button>
+    </div>
+  </div>
+
+  <!-- Top-level navigation -->
+  <div class="top-nav">
+    <button class="nav-tab active" data-view="view-draft">Draft Board</button>
+    <button class="nav-tab" data-view="view-charts">Charts</button>
+  </div>
+
+  <!-- VIEW: Draft Board -->
+  <div class="view active" id="view-draft">
+    <div class="main-content">
+
+      <!-- Draft Board Table -->
+      <div class="draft-board">
+        <table>
+          <colgroup>
+            <col class="col-num">
+            <col class="col-team">
+            <col class="col-player">
+            <col class="col-slot">
+            <col class="col-pval">
+            <col class="col-score">
+            <col class="col-actions">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Team</th>
+              <th>Player</th>
+              <th>Slot Val</th>
+              <th>Player Val</th>
+              <th>Pick Score</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="draft-board-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Trades Panel -->
+      <div class="trades-panel">
+        <h3>Trades</h3>
+        <div id="trades-log"></div>
+      </div>
+
+      <!-- Right Panel: Pick Entry + Available Players -->
+      <div class="right-panel">
+
+        <!-- Pick Entry Form -->
+        <div class="pick-form">
+          <h3>Enter Pick</h3>
+          <div class="form-row">
+            <label>Team</label>
+            <select id="team-select">
+              <option value="">Select team...</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Player</label>
+            <input type="text" id="player-input" list="player-options" placeholder="Search player...">
+            <datalist id="player-options"></datalist>
+            <input type="hidden" id="selected-overall">
+          </div>
+          <div id="pick-preview"></div>
+          <div class="form-buttons">
+            <button class="btn-submit" id="submit-pick-btn">Submit Pick (Ctrl+Enter)</button>
+            <button class="btn-reset" id="reset-draft-btn">Reset</button>
+          </div>
+        </div>
+
+        <!-- Available Players -->
+        <div class="available-section">
+          <div class="available-header">
+            <h3>Available</h3>
+            <input type="text" id="player-filter" placeholder="Filter...">
+            <select id="position-filter">
+              <option value="">All</option>
+              <option>QB</option>
+              <option>RB</option>
+              <option>WR</option>
+              <option>TE</option>
+              <option>OT</option>
+              <option>OG</option>
+              <option>OC</option>
+              <option>EDGE</option>
+              <option>DI</option>
+              <option>LB</option>
+              <option>CB</option>
+              <option>S</option>
+            </select>
+          </div>
+          <div id="available-players"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW: Charts -->
+  <div class="view" id="view-charts">
+    <div class="charts-page">
+      <div class="chart-header">
+        <div class="chart-tabs">
+          <div class="chart-tab active" data-chart="chart-pick-score">Pick Score vs Board</div>
+          <div class="chart-tab" data-chart="chart-team-summary">Team Summary</div>
+          <div class="chart-tab" data-chart="chart-draft-grades">Draft Grades</div>
+          <div class="chart-tab" data-chart="chart-capital">Draft Capital</div>
+          <div class="chart-tab" data-chart="chart-trade-value">Trade Value</div>
+        </div>
+        <div class="round-filters-wrap">
+          <span class="filter-label">Rounds:</span>
+          <div id="round-filters"></div>
+        </div>
+      </div>
+      <div class="chart-area">
+        <div class="chart-panel active" id="chart-pick-score">
+          <canvas id="pick-score-chart"></canvas>
+        </div>
+        <div class="chart-panel" id="chart-team-summary">
+          <canvas id="team-summary-chart"></canvas>
+        </div>
+        <div class="chart-panel" id="chart-draft-grades">
+          <div id="draft-grades-container"></div>
+        </div>
+        <div class="chart-panel" id="chart-capital">
+          <canvas id="capital-chart"></canvas>
+        </div>
+        <div class="chart-panel" id="chart-trade-value">
+          <canvas id="trade-value-chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trade Modal -->
+  <div class="modal-overlay" id="trade-modal" style="display:none">
+    <div class="modal">
+      <h3 id="trade-modal-title">Trade Pick</h3>
+      <div id="trade-modal-content"></div>
+      <button class="modal-cancel" id="trade-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/firebase-sync.js"></script>
+  <script src="js/trade-inventory.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
