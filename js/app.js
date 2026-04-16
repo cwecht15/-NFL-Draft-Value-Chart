@@ -23,28 +23,32 @@ document.addEventListener('DOMContentLoaded', () => {
     teamSelect.appendChild(opt);
   });
 
-  // Refresh board from Google Sheet
-  document.getElementById('refresh-board-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('refresh-board-btn');
-    btn.disabled = true;
-    btn.textContent = 'Refreshing...';
-    try {
-      const res = await fetch('/api/refresh', { method: 'POST' });
-      const data = await res.json();
-      if (data.ok) {
-        btn.textContent = `Updated (${data.count} players)`;
-        setTimeout(() => location.reload(), 800);
-      } else {
-        btn.textContent = 'Error';
-        console.error('Refresh failed:', data.error);
-        setTimeout(() => { btn.textContent = 'Refresh Board'; btn.disabled = false; }, 3000);
+  // Refresh board from Google Sheet — local dev only (/api/refresh lives on server.py)
+  const refreshBtn = document.getElementById('refresh-board-btn');
+  const isLocalDev = ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+  if (isLocalDev) {
+    refreshBtn.style.display = '';
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Refreshing...';
+      try {
+        const res = await fetch('/api/refresh', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          refreshBtn.textContent = `Updated (${data.count} players)`;
+          setTimeout(() => location.reload(), 800);
+        } else {
+          refreshBtn.textContent = 'Error';
+          console.error('Refresh failed:', data.error);
+          setTimeout(() => { refreshBtn.textContent = 'Refresh Board'; refreshBtn.disabled = false; }, 3000);
+        }
+      } catch (e) {
+        refreshBtn.textContent = 'Error';
+        console.error('Refresh failed:', e);
+        setTimeout(() => { refreshBtn.textContent = 'Refresh Board'; refreshBtn.disabled = false; }, 3000);
       }
-    } catch (e) {
-      btn.textContent = 'Error';
-      console.error('Refresh failed:', e);
-      setTimeout(() => { btn.textContent = 'Refresh Board'; btn.disabled = false; }, 3000);
-    }
-  });
+    });
+  }
 
   // Pick form
   document.getElementById('submit-pick-btn').addEventListener('click', handleSubmitPick);
@@ -65,7 +69,11 @@ document.addEventListener('DOMContentLoaded', () => {
       selectPlayer(match.overall);
     } else {
       document.getElementById('selected-overall').value = '';
-      document.getElementById('pick-preview').style.display = 'none';
+      if (val.trim()) {
+        showOffBoardPreview(val.trim());
+      } else {
+        document.getElementById('pick-preview').style.display = 'none';
+      }
     }
   });
 

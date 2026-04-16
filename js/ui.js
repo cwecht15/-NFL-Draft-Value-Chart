@@ -94,9 +94,8 @@ function renderDraftBoard(picks) {
 
   const tbody = document.getElementById('draft-board-body');
   const rows = [];
-  const showUpTo = Math.max(currentPickNumber + 6, 32);
 
-  for (let i = 1; i <= Math.min(showUpTo, 257); i++) {
+  for (let i = 1; i <= 257; i++) {
     const pick = picks[i];
     const slotValue = getSlotValue(i);
     const round = getRoundForPick(i);
@@ -109,15 +108,17 @@ function renderDraftBoard(picks) {
 
     if (pick) {
       const player = pick.playerOverall ? findPlayerByOverall(pick.playerOverall) : null;
+      const offBoard = !player;
+      const effScore = player ? player.score : SCORE_PARAMS.minScore;
       const playerName = player ? player.player : (pick.playerName || 'Off Board');
       const position = player ? player.position : '';
       const school = player ? player.school : '';
-      const playerValue = player ? getPlayerValue(player.score).toFixed(0) : '—';
-      const pickScore = player ? getPickScore(i, player.score) : null;
+      const playerValue = getPlayerValue(effScore).toFixed(0);
+      const pickScore = getPickScore(i, effScore);
       const tradeCost = getTradeCost(i);
-      const netScore = pickScore !== null ? pickScore - tradeCost : null;
-      const scoreColor = netScore !== null ? getPickScoreColor(netScore) : '#666';
-      const scoreLabel = netScore !== null ? `${netScore > 0 ? '+' : ''}${netScore.toFixed(0)}` : '—';
+      const netScore = pickScore - tradeCost;
+      const scoreColor = getPickScoreColor(netScore);
+      const scoreLabel = `${netScore > 0 ? '+' : ''}${netScore.toFixed(0)}`;
       const team = pick.team;
       const teamColor = TEAM_COLORS[team] || '#666';
       const traded = scheduledTeam && team !== scheduledTeam;
@@ -136,7 +137,7 @@ function renderDraftBoard(picks) {
           </td>
           <td class="pick-player">
             <div class="player-name">${playerName}</div>
-            <div class="player-info">${position}${school ? ' - ' + school : ''}${player ? ` | ${player.score}` : ''}${player?.posRank ? ` | ${player.posRank}` : ''}</div>
+            <div class="player-info">${offBoard ? `Off Board | min ${effScore}` : `${position}${school ? ' - ' + school : ''} | ${player.score}${player.posRank ? ' | ' + player.posRank : ''}`}</div>
           </td>
           <td class="pick-slot-val">${slotValue.toFixed(0)}</td>
           <td class="pick-player-val">${playerValue}</td>
@@ -344,6 +345,20 @@ function updatePlayerDatalist() {
   datalist.innerHTML = available.map(p =>
     `<option value="${p.player}">#${p.overall} ${p.player} - ${p.position}, ${p.school} (${p.score})</option>`
   ).join('');
+}
+
+function showOffBoardPreview(name) {
+  const preview = document.getElementById('pick-preview');
+  const slotVal = getSlotValue(currentPickNumber);
+  const minScore = SCORE_PARAMS.minScore;
+  const playerVal = getPlayerValue(minScore);
+  const pickScore = playerVal - slotVal;
+  preview.innerHTML = `
+    <div class="preview-line"><strong>${name}</strong> <em>(Off Board — min value)</em></div>
+    <div class="preview-line">Board Score: ${minScore} (min) | Player Value: ${playerVal.toFixed(0)}</div>
+    <div class="preview-line">Slot Value: ${slotVal.toFixed(0)} | Pick Score: <span style="color:${getPickScoreColor(pickScore)};font-weight:bold">${pickScore > 0 ? '+' : ''}${pickScore.toFixed(0)} (${getPickScoreLabel(pickScore)})</span></div>
+  `;
+  preview.style.display = 'block';
 }
 
 function selectPlayer(overall) {
@@ -784,13 +799,12 @@ function handleResetDraft() {
   resetDraft();
   tradeOverrides = {};
   tradeDetails = {};
+  currentPicks = {};
   localStorage.removeItem('draft_trades');
   localStorage.removeItem('draft_trade_details');
+  localStorage.removeItem('draft_future_trades');
+  localStorage.removeItem('draft_team_tiers');
   resetPickInventory();
-
-  if (!isFirebaseConfigured()) {
-    currentPicks = {};
-    renderDraftBoard({});
-    if (typeof updateCharts === 'function') updateCharts({});
-  }
+  renderDraftBoard({});
+  if (typeof updateCharts === 'function') updateCharts({});
 }
