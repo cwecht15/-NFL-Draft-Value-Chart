@@ -17,6 +17,30 @@ function isFirebaseConfigured() {
   return !!FIREBASE_CONFIG.apiKey && !!FIREBASE_CONFIG.databaseURL;
 }
 
+// Firebase converts objects with integer keys to sparse arrays. Normalize back
+// to a plain object and drop null holes so iterators don't choke on them.
+function normalizeMap(val) {
+  if (!val) return {};
+  const out = {};
+  if (Array.isArray(val)) {
+    val.forEach((v, i) => { if (v != null) out[i] = v; });
+    return out;
+  }
+  for (const [k, v] of Object.entries(val)) {
+    if (v != null) out[k] = v;
+  }
+  return out;
+}
+
+function refreshTradeView() {
+  if (typeof renderDraftBoard === 'function' && typeof currentPicks !== 'undefined') {
+    renderDraftBoard(currentPicks);
+  }
+  if (typeof updateCharts === 'function' && typeof currentPicks !== 'undefined') {
+    updateCharts(currentPicks);
+  }
+}
+
 function initFirebase(onPicksUpdate) {
   if (!isFirebaseConfigured()) {
     console.log('Firebase not configured — local-only mode');
@@ -30,29 +54,31 @@ function initFirebase(onPicksUpdate) {
 
     // Listen for picks
     db.ref('picks').on('value', (snapshot) => {
-      const picks = snapshot.val() || {};
+      const picks = normalizeMap(snapshot.val());
       localStorage.setItem('draft_picks', JSON.stringify(picks));
       onPicksUpdate(picks);
     });
 
     // Listen for trade overrides
     db.ref('trades').on('value', (snapshot) => {
-      const trades = snapshot.val() || {};
-      tradeOverrides = trades;
-      localStorage.setItem('draft_trades', JSON.stringify(trades));
+      tradeOverrides = normalizeMap(snapshot.val());
+      localStorage.setItem('draft_trades', JSON.stringify(tradeOverrides));
+      refreshTradeView();
     });
 
     // Listen for trade details
     db.ref('tradeDetails').on('value', (snapshot) => {
-      const details = snapshot.val() || {};
-      tradeDetails = details;
-      localStorage.setItem('draft_trade_details', JSON.stringify(details));
+      tradeDetails = normalizeMap(snapshot.val());
+      localStorage.setItem('draft_trade_details', JSON.stringify(tradeDetails));
+      refreshTradeView();
     });
 
     // Listen for future pick trades
     db.ref('futureTrades').on('value', (snapshot) => {
-      const ft = snapshot.val() || [];
+      const raw = snapshot.val();
+      const ft = Array.isArray(raw) ? raw.filter(x => x != null) : (raw ? Object.values(raw).filter(x => x != null) : []);
       localStorage.setItem('draft_future_trades', JSON.stringify(ft));
+      refreshTradeView();
     });
 
     return true;

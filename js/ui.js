@@ -225,7 +225,7 @@ function renderTradesLog() {
   const container = document.getElementById('trades-log');
   if (!container) return;
 
-  const tradeEntries = Object.entries(tradeDetails);
+  const tradeEntries = Object.entries(tradeDetails).filter(([, t]) => t && t.teamTo);
   if (!tradeEntries.length) {
     container.innerHTML = '<div class="trade-log-empty">No trades yet</div>';
     return;
