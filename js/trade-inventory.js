@@ -15,6 +15,18 @@ const TEAM_TIERS = {
   'late':   { label: 'Late',    offsets: { 1: 29, 2: 61, 3: 93, 4: 125, 5: 157, 6: 205, 7: 248 } },
 };
 
+// Veteran NFL players included in trades. Values are on the Fitz scale
+// (pick #1 ≈ 3000, #10 ≈ 2000, #32 ≈ 800, #100 ≈ 300).
+const NFL_PLAYER_TIERS = {
+  superstar:   { label: 'Superstar',   value: 2500 },
+  probowler:   { label: 'Pro Bowler',  value: 1500 },
+  starter:     { label: 'Starter',     value:  800 },
+  rotational:  { label: 'Rotational',  value:  400 },
+  backup:      { label: 'Backup',      value:  150 },
+};
+
+const NFL_POSITIONS = ['QB','RB','WR','TE','OT','OG','OC','EDGE','DI','LB','CB','S','K','P'];
+
 // Per-team tier assignments (default: mid)
 let teamTierAssignments = JSON.parse(localStorage.getItem('draft_team_tiers') || '{}');
 
@@ -257,6 +269,30 @@ function resetPickInventory() {
   localStorage.removeItem('draft_team_tiers');
   teamTierAssignments = {};
   initPickInventory();
+}
+
+// NFL veterans this team has net-acquired across all trades:
+// add every player received, subtract any player later sent away in another trade.
+function getTeamAcquiredPlayers(team) {
+  const acquired = [];
+  const lost = [];
+  for (const trade of Object.values(tradeDetails || {})) {
+    if (!trade || (!trade.teamTo && !trade.teamFrom)) continue;
+    // teamTo acquires playersReceived (sent by teamFrom).
+    // teamFrom acquires playersGivenUp (sent by teamTo).
+    if (trade.teamTo === team) (trade.playersReceived || []).forEach(p => acquired.push(p));
+    if (trade.teamFrom === team) (trade.playersGivenUp || []).forEach(p => acquired.push(p));
+    if (trade.teamTo === team) (trade.playersGivenUp || []).forEach(p => lost.push(p));
+    if (trade.teamFrom === team) (trade.playersReceived || []).forEach(p => lost.push(p));
+  }
+  // Net: remove one matching entry from acquired for each lost entry (by name+position).
+  const lostKeys = lost.map(p => `${p.name}|${p.position}`);
+  return acquired.filter(p => {
+    const key = `${p.name}|${p.position}`;
+    const idx = lostKeys.indexOf(key);
+    if (idx > -1) { lostKeys.splice(idx, 1); return false; }
+    return true;
+  });
 }
 
 // Get total remaining draft capital for a team (current undrafted + future picks)

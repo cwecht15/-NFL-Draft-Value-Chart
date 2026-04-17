@@ -459,25 +459,36 @@ function computeTeamReport(team) {
     (trade.futurePicksGivenUp || []).forEach(fp => {
       givenUpValue += getFuturePickValue(fp.round, fp.year - 2026, teamTo, fp.orig);
     });
+    (trade.playersGivenUp || []).forEach(pl => { givenUpValue += (pl.value || 0); });
     let receivedValue = getSlotValue(pNum);
     (trade.picksReceived || []).forEach(p => { receivedValue += getSlotValue(p); });
     (trade.futurePicksReceived || []).forEach(fp => {
       receivedValue += getFuturePickValue(fp.round, fp.year - 2026, teamFrom, fp.orig);
     });
+    (trade.playersReceived || []).forEach(pl => { receivedValue += (pl.value || 0); });
 
     const isAcquirer = teamTo === team;
+    const playerLabel = pl => `${pl.name}${pl.position ? ' (' + pl.position + ')' : ''}`;
+    const givenUpLabels = [
+      ...(trade.picksGivenUp || []).map(p => `#${p} R${getRoundForPick(p)}`),
+      ...(trade.futurePicksGivenUp || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== teamTo ? ' via ' + fp.orig : ''}`),
+      ...(trade.playersGivenUp || []).map(playerLabel),
+    ];
+    const receivedLabels = [
+      `#${pNum} R${getRoundForPick(pNum)}`,
+      ...(trade.picksReceived || []).map(p => `#${p} R${getRoundForPick(p)}`),
+      ...(trade.futurePicksReceived || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== teamFrom ? ' via ' + fp.orig : ''}`),
+      ...(trade.playersReceived || []).map(playerLabel),
+    ];
+
     // Net from this team's perspective: positive = this team gained value
     const net = isAcquirer ? (receivedValue - givenUpValue) : (givenUpValue - receivedValue);
     trades.push({
       pickNum: pNum,
       role: isAcquirer ? 'acquired' : 'traded away',
       counterparty: isAcquirer ? teamFrom : teamTo,
-      sent: isAcquirer
-        ? [...(trade.picksGivenUp || []).map(p => `#${p} R${getRoundForPick(p)}`), ...(trade.futurePicksGivenUp || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)]
-        : [`#${pNum} R${getRoundForPick(pNum)}`, ...(trade.picksReceived || []).map(p => `#${p} R${getRoundForPick(p)}`), ...(trade.futurePicksReceived || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)],
-      received: isAcquirer
-        ? [`#${pNum} R${getRoundForPick(pNum)}`, ...(trade.picksReceived || []).map(p => `#${p} R${getRoundForPick(p)}`), ...(trade.futurePicksReceived || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)]
-        : [...(trade.picksGivenUp || []).map(p => `#${p} R${getRoundForPick(p)}`), ...(trade.futurePicksGivenUp || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)],
+      sent: isAcquirer ? givenUpLabels : receivedLabels,
+      received: isAcquirer ? receivedLabels : givenUpLabels,
       sentTotal: isAcquirer ? givenUpValue : receivedValue,
       receivedTotal: isAcquirer ? receivedValue : givenUpValue,
       net,
@@ -688,6 +699,9 @@ function updateTradeValueChart() {
     if (trade.futurePicksGivenUp?.length) {
       sentValue += trade.futurePicksGivenUp.reduce((s, fp) => s + getFuturePickValue(fp.round, fp.year - 2026, teamTo, fp.orig), 0);
     }
+    if (trade.playersGivenUp?.length) {
+      sentValue += trade.playersGivenUp.reduce((s, pl) => s + (pl.value || 0), 0);
+    }
 
     // What teamFrom (trading down team) sent (the pick + any extras)
     let receivedValue = getSlotValue(pickNum);
@@ -696,6 +710,9 @@ function updateTradeValueChart() {
     }
     if (trade.futurePicksReceived?.length) {
       receivedValue += trade.futurePicksReceived.reduce((s, fp) => s + getFuturePickValue(fp.round, fp.year - 2026, teamFrom, fp.orig), 0);
+    }
+    if (trade.playersReceived?.length) {
+      receivedValue += trade.playersReceived.reduce((s, pl) => s + (pl.value || 0), 0);
     }
 
     // teamTo net = what they received - what they sent

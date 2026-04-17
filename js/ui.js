@@ -40,6 +40,9 @@ function getTradeCost(pickNum) {
       return sum + getFuturePickValue(fp.round, fp.year - 2026, trade.teamTo, fp.orig);
     }, 0);
   }
+  if (trade.playersGivenUp?.length) {
+    givenUpValue += trade.playersGivenUp.reduce((sum, pl) => sum + (pl.value || 0), 0);
+  }
   let receivedValue = getSlotValue(pickNum);
   if (trade.picksReceived?.length) {
     receivedValue += trade.picksReceived.reduce((sum, p) => sum + getSlotValue(p), 0);
@@ -48,6 +51,9 @@ function getTradeCost(pickNum) {
     receivedValue += trade.futurePicksReceived.reduce((sum, fp) => {
       return sum + getFuturePickValue(fp.round, fp.year - 2026, trade.teamFrom, fp.orig);
     }, 0);
+  }
+  if (trade.playersReceived?.length) {
+    receivedValue += trade.playersReceived.reduce((sum, pl) => sum + (pl.value || 0), 0);
   }
   return givenUpValue - receivedValue;
 }
@@ -77,6 +83,10 @@ function buildInventoryTooltip(team) {
       return fp.orig !== team ? label + ' (via ' + fp.orig + ')' : label;
     }).join(', ')}`);
   });
+  const acquired = getTeamAcquiredPlayers(team);
+  if (acquired.length) {
+    lines.push(`Acquired: ${acquired.map(p => `${p.name}${p.position ? ' (' + p.position + ')' : ''}`).join(', ')}`);
+  }
   return lines.join('\n');
 }
 
@@ -255,6 +265,10 @@ function renderTradesLog() {
       toSends.push(`'${(fp.year+'').slice(2)} R${fp.round}${viaLabel}`);
       toSendsTotal += v;
     });
+    (trade.playersGivenUp || []).forEach(pl => {
+      toSends.push(`${pl.name}${pl.position ? ' (' + pl.position + ')' : ''}`);
+      toSendsTotal += (pl.value || 0);
+    });
 
     let fromSends = [`#${pickNum}`];
     let fromSendsTotal = getSlotValue(pickNum);
@@ -268,6 +282,10 @@ function renderTradesLog() {
       const viaLabel = fp.orig && fp.orig !== teamFrom ? ` via ${fp.orig}` : '';
       fromSends.push(`'${(fp.year+'').slice(2)} R${fp.round}${viaLabel}`);
       fromSendsTotal += v;
+    });
+    (trade.playersReceived || []).forEach(pl => {
+      fromSends.push(`${pl.name}${pl.position ? ' (' + pl.position + ')' : ''}`);
+      fromSendsTotal += (pl.value || 0);
     });
 
     // Net from teamTo's perspective: positive = overpaid, negative = got a deal
@@ -507,16 +525,50 @@ function handleTrade(pickNumber, isEdit) {
     // Selections for the team trading UP (newTeam gives these)
     const givenCurrentPicks = new Set();
     const givenFuturePicks = []; // {year, round}
+    const givenPlayers = [];     // {name, position, value, tier}
     // Selections for the team trading DOWN (currentTeam gives these, in addition to the pick itself)
     const receivedCurrentPicks = new Set();
     const receivedFuturePicks = []; // {year, round}
+    const receivedPlayers = [];     // {name, position, value, tier}
 
     // Pre-populate from saved trade when editing
     if (isEdit && savedTrade) {
       (savedTrade.picksGivenUp || []).forEach(p => givenCurrentPicks.add(p));
       (savedTrade.futurePicksGivenUp || []).forEach(fp => givenFuturePicks.push({ year: fp.year, round: fp.round, orig: fp.orig }));
+      (savedTrade.playersGivenUp || []).forEach(pl => givenPlayers.push({ name: pl.name, position: pl.position, value: pl.value, tier: pl.tier || 'custom' }));
       (savedTrade.picksReceived || []).forEach(p => receivedCurrentPicks.add(p));
       (savedTrade.futurePicksReceived || []).forEach(fp => receivedFuturePicks.push({ year: fp.year, round: fp.round, orig: fp.orig }));
+      (savedTrade.playersReceived || []).forEach(pl => receivedPlayers.push({ name: pl.name, position: pl.position, value: pl.value, tier: pl.tier || 'custom' }));
+    }
+
+    function buildPlayerRow(side, player) {
+      const p = player || {};
+      const tier = p.tier || 'starter';
+      const value = p.value != null ? p.value : NFL_PLAYER_TIERS[tier]?.value ?? 0;
+      const positionOptions = ['<option value="">Pos</option>']
+        .concat(NFL_POSITIONS.map(pos => `<option value="${pos}" ${p.position === pos ? 'selected' : ''}>${pos}</option>`))
+        .join('');
+      const tierBtns = Object.entries(NFL_PLAYER_TIERS).map(([key, t]) =>
+        `<button type="button" class="player-tier-btn ${key === tier ? 'active' : ''}" data-tier="${key}" title="${t.label} — ${t.value}">${t.label}</button>`
+      ).join('');
+      return `
+        <div class="trade-player-row" data-side="${side}">
+          <input type="text" class="player-name-input" placeholder="Player name" value="${(p.name || '').replace(/"/g, '&quot;')}">
+          <select class="player-position-select">${positionOptions}</select>
+          <div class="player-tier-btns">${tierBtns}</div>
+          <input type="number" class="player-value-input" value="${Math.round(value)}" min="0" step="50" title="Fitz value">
+          <button type="button" class="player-remove-btn" title="Remove">&times;</button>
+        </div>`;
+    }
+
+    function buildPlayersSection(side, selectedPlayers) {
+      const rowsHtml = selectedPlayers.map(p => buildPlayerRow(side, p)).join('');
+      return `
+        <div class="trade-players-section">
+          <div class="trade-future-year-label">NFL Players</div>
+          <div class="trade-players-list" data-side="${side}">${rowsHtml}</div>
+          <button type="button" class="trade-player-add-btn" data-side="${side}">+ Add NFL Player</button>
+        </div>`;
     }
 
     function buildTeamChecklist(team, selectedCurrent, selectedFuture, idPrefix) {
@@ -586,6 +638,7 @@ function handleTrade(pickNumber, isEdit) {
               ${upSide.currentPicksHtml || '<div class="no-picks-msg">No current-year picks</div>'}
               ${upSide.futurePicksHtml}
             </div>
+            ${buildPlayersSection('given', givenPlayers)}
           </div>
           <div class="trade-side">
             <div class="trade-side-header" style="border-color:${currentTeamColor}">
@@ -597,6 +650,7 @@ function handleTrade(pickNumber, isEdit) {
               ${downSide.currentPicksHtml || '<div class="no-picks-msg">No additional picks</div>'}
               ${downSide.futurePicksHtml}
             </div>
+            ${buildPlayersSection('received', receivedPlayers)}
           </div>
         </div>
         <div class="trade-summary" id="trade-summary">
@@ -613,17 +667,83 @@ function handleTrade(pickNumber, isEdit) {
         cb.addEventListener('change', updatePreview);
       });
 
+      // Bind NFL player row controls via delegation. `content.innerHTML = ...`
+      // wipes child listeners, but listeners on `content` itself survive — and
+      // handlers from a prior trade close over stale closure state. Remove any
+      // previous bindings before re-attaching.
+      if (content._playerHandlers) {
+        content.removeEventListener('click', content._playerHandlers.click);
+        content.removeEventListener('input', content._playerHandlers.input);
+        content.removeEventListener('change', content._playerHandlers.input);
+      }
+      content._playerHandlers = { click: handlePlayerClick, input: handlePlayerInput };
+      content.addEventListener('click', handlePlayerClick);
+      content.addEventListener('input', handlePlayerInput);
+      content.addEventListener('change', handlePlayerInput);
+
       document.getElementById('trade-confirm').addEventListener('click', handleConfirm);
       document.getElementById('trade-back').addEventListener('click', showStep1);
 
       updatePreview();
     }
 
+    function handlePlayerClick(e) {
+      const addBtn = e.target.closest('.trade-player-add-btn');
+      if (addBtn) {
+        const side = addBtn.dataset.side;
+        const list = content.querySelector(`.trade-players-list[data-side="${side}"]`);
+        if (list) {
+          list.insertAdjacentHTML('beforeend', buildPlayerRow(side, null));
+          updatePreview();
+        }
+        return;
+      }
+      const removeBtn = e.target.closest('.player-remove-btn');
+      if (removeBtn) {
+        removeBtn.closest('.trade-player-row')?.remove();
+        updatePreview();
+        return;
+      }
+      const tierBtn = e.target.closest('.player-tier-btn');
+      if (tierBtn) {
+        const row = tierBtn.closest('.trade-player-row');
+        row.querySelectorAll('.player-tier-btn').forEach(b => b.classList.remove('active'));
+        tierBtn.classList.add('active');
+        const tierKey = tierBtn.dataset.tier;
+        const val = NFL_PLAYER_TIERS[tierKey]?.value;
+        const valueInput = row.querySelector('.player-value-input');
+        if (valueInput && val != null) valueInput.value = val;
+        updatePreview();
+      }
+    }
+
+    function handlePlayerInput(e) {
+      if (e.target.classList.contains('player-value-input')) {
+        const row = e.target.closest('.trade-player-row');
+        const active = row?.querySelector('.player-tier-btn.active');
+        if (active) {
+          const expected = NFL_PLAYER_TIERS[active.dataset.tier]?.value;
+          const v = parseFloat(e.target.value);
+          if (expected != null && !isNaN(v) && Math.abs(v - expected) >= 0.5) {
+            active.classList.remove('active');
+          }
+        }
+        updatePreview();
+        return;
+      }
+      if (e.target.classList.contains('player-name-input') ||
+          e.target.classList.contains('player-position-select')) {
+        updatePreview();
+      }
+    }
+
     function updatePreview() {
       givenCurrentPicks.clear();
       givenFuturePicks.length = 0;
+      givenPlayers.length = 0;
       receivedCurrentPicks.clear();
       receivedFuturePicks.length = 0;
+      receivedPlayers.length = 0;
 
       content.querySelectorAll('.trade-pick-cb:checked').forEach(cb => {
         const side = cb.dataset.side;
@@ -636,9 +756,24 @@ function handleTrade(pickNumber, isEdit) {
         }
       });
 
+      content.querySelectorAll('.trade-player-row').forEach(row => {
+        const name = row.querySelector('.player-name-input')?.value.trim();
+        if (!name) return;
+        const position = row.querySelector('.player-position-select')?.value || '';
+        const value = parseFloat(row.querySelector('.player-value-input')?.value) || 0;
+        const activeTierBtn = row.querySelector('.player-tier-btn.active');
+        const tierKey = activeTierBtn?.dataset.tier || null;
+        const expected = tierKey ? NFL_PLAYER_TIERS[tierKey]?.value : null;
+        const tier = tierKey && expected != null && Math.abs(value - expected) < 0.5 ? tierKey : 'custom';
+        const player = { name, position, value, tier };
+        if (row.dataset.side === 'given') givenPlayers.push(player);
+        else receivedPlayers.push(player);
+      });
+
       const summaryEl = document.getElementById('trade-summary');
       const confirmBtn = document.getElementById('trade-confirm');
-      const totalSelected = givenCurrentPicks.size + givenFuturePicks.length + receivedCurrentPicks.size + receivedFuturePicks.length;
+      const totalSelected = givenCurrentPicks.size + givenFuturePicks.length + givenPlayers.length
+        + receivedCurrentPicks.size + receivedFuturePicks.length + receivedPlayers.length;
 
       if (totalSelected === 0) {
         summaryEl.innerHTML = '<div class="trade-summary-empty">Select picks to see trade value</div>';
@@ -695,6 +830,10 @@ function handleTrade(pickNumber, isEdit) {
         const origLabel = fp.orig && fp.orig !== newTeam ? ` via ${fp.orig}` : '';
         givenLines.push(`${fp.year} R${fp.round}${origLabel} (~${Math.round(v)})`);
       });
+      givenPlayers.forEach(pl => {
+        givenTotal += pl.value;
+        givenLines.push(`${pl.name}${pl.position ? ', ' + pl.position : ''} (${Math.round(pl.value)})`);
+      });
 
       // Calculate what currentTeam sends (pick + extras)
       let receivedLines = [`#${pickNumber} (${slotVal.toFixed(0)})`];
@@ -709,6 +848,10 @@ function handleTrade(pickNumber, isEdit) {
         receivedTotal += v;
         const origLabel = fp.orig && fp.orig !== currentTeam ? ` via ${fp.orig}` : '';
         receivedLines.push(`${fp.year} R${fp.round}${origLabel} (~${Math.round(v)})`);
+      });
+      receivedPlayers.forEach(pl => {
+        receivedTotal += pl.value;
+        receivedLines.push(`${pl.name}${pl.position ? ', ' + pl.position : ''} (${Math.round(pl.value)})`);
       });
 
       const tradeCost = givenTotal - receivedTotal;
@@ -741,8 +884,10 @@ function handleTrade(pickNumber, isEdit) {
         teamTo: newTeam,
         picksGivenUp: picksGiven,
         futurePicksGivenUp: givenFuturePicks.map(fp => ({ year: fp.year, round: fp.round, orig: fp.orig })),
+        playersGivenUp: givenPlayers.map(pl => ({ name: pl.name, position: pl.position, value: pl.value, tier: pl.tier })),
         picksReceived: picksReceived,
         futurePicksReceived: receivedFuturePicks.map(fp => ({ year: fp.year, round: fp.round, orig: fp.orig })),
+        playersReceived: receivedPlayers.map(pl => ({ name: pl.name, position: pl.position, value: pl.value, tier: pl.tier })),
       };
       localStorage.setItem('draft_trade_details', JSON.stringify(tradeDetails));
 
