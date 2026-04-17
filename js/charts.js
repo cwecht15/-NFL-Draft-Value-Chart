@@ -138,33 +138,37 @@ function updatePickScoreChart() {
             }
           });
 
-          // Second pass: place labels, trying candidate positions to avoid overlap
+          // Second pass: place labels. For each point, try 8 directions at
+          // increasing distances; pick the nearest position with no collision.
+          // If the chosen position is far from the point, draw a leader line.
           ctx.font = `bold ${fontSize}px sans-serif`;
           const placed = [];
           const pad = 2;
-          const diag = Math.round(labelOffset * 0.75);
 
-          // Candidate offsets: {dx, dy, align, baseline}. Tried in order of preference.
-          const candidates = [
-            { dx:  labelOffset, dy: 0,             align: 'left',   baseline: 'middle' },
-            { dx: -labelOffset, dy: 0,             align: 'right',  baseline: 'middle' },
-            { dx:  diag,        dy: -diag,         align: 'left',   baseline: 'bottom' },
-            { dx: -diag,        dy: -diag,         align: 'right',  baseline: 'bottom' },
-            { dx:  diag,        dy:  diag,         align: 'left',   baseline: 'top'    },
-            { dx: -diag,        dy:  diag,         align: 'right',  baseline: 'top'    },
-            { dx:  0,           dy: -labelOffset,  align: 'center', baseline: 'bottom' },
-            { dx:  0,           dy:  labelOffset,  align: 'center', baseline: 'top'    },
+          // 8 unit-vector directions around the point
+          const directions = [
+            { ux:  1, uy:  0, align: 'left',   baseline: 'middle' },
+            { ux: -1, uy:  0, align: 'right',  baseline: 'middle' },
+            { ux:  0.71, uy: -0.71, align: 'left',   baseline: 'bottom' },
+            { ux: -0.71, uy: -0.71, align: 'right',  baseline: 'bottom' },
+            { ux:  0.71, uy:  0.71, align: 'left',   baseline: 'top'    },
+            { ux: -0.71, uy:  0.71, align: 'right',  baseline: 'top'    },
+            { ux:  0, uy: -1, align: 'center', baseline: 'bottom' },
+            { ux:  0, uy:  1, align: 'center', baseline: 'top'    },
           ];
 
-          function labelBox(px, py, w, h, c) {
+          // Distances to try (in multiples of labelOffset)
+          const distanceSteps = [1, 1.75, 2.75, 4, 5.5];
+
+          function labelBox(px, py, w, h, dx, dy, align, baseline) {
             let x;
-            if (c.align === 'left') x = px + c.dx;
-            else if (c.align === 'right') x = px + c.dx - w;
-            else x = px + c.dx - w / 2;
+            if (align === 'left') x = px + dx;
+            else if (align === 'right') x = px + dx - w;
+            else x = px + dx - w / 2;
             let y;
-            if (c.baseline === 'top') y = py + c.dy;
-            else if (c.baseline === 'bottom') y = py + c.dy - h;
-            else y = py + c.dy - h / 2;
+            if (baseline === 'top') y = py + dy;
+            else if (baseline === 'bottom') y = py + dy - h;
+            else y = py + dy - h / 2;
             return { x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad };
           }
 
@@ -183,7 +187,6 @@ function updatePickScoreChart() {
             .filter(o => filtered[o.i] && filtered[o.i].label)
             .sort((a, b) => Math.abs(filtered[b.i].x) - Math.abs(filtered[a.i].x));
 
-          ctx.fillStyle = tc.labelColor;
           for (const { pt, i } of order) {
             const d = filtered[i];
             const text = shortenPlayerName(d.label);
@@ -191,21 +194,45 @@ function updatePickScoreChart() {
             const h = fontSize;
 
             let chosen = null;
-            for (const c of candidates) {
-              const box = labelBox(pt.x, pt.y, w, h, c);
-              if (!inBounds(box)) continue;
-              if (placed.some(p => rectsOverlap(p, box))) continue;
-              chosen = { c, box };
-              break;
+            // Try each distance step, sweeping all 8 directions at that distance,
+            // so near placements are preferred over far ones.
+            outer: for (const step of distanceSteps) {
+              for (const dir of directions) {
+                const dx = dir.ux * labelOffset * step;
+                const dy = dir.uy * labelOffset * step;
+                const box = labelBox(pt.x, pt.y, w, h, dx, dy, dir.align, dir.baseline);
+                if (!inBounds(box)) continue;
+                if (placed.some(p => rectsOverlap(p, box))) continue;
+                chosen = { dx, dy, dir, box, step };
+                break outer;
+              }
             }
             if (!chosen) {
-              const c = candidates[0];
-              chosen = { c, box: labelBox(pt.x, pt.y, w, h, c) };
+              const dir = directions[0];
+              const dx = dir.ux * labelOffset, dy = dir.uy * labelOffset;
+              chosen = { dx, dy, dir, box: labelBox(pt.x, pt.y, w, h, dx, dy, dir.align, dir.baseline), step: 1 };
             }
 
-            ctx.textAlign = chosen.c.align;
-            ctx.textBaseline = chosen.c.baseline;
-            ctx.fillText(text, pt.x + chosen.c.dx, pt.y + chosen.c.dy);
+            // Leader line for labels placed more than one step away
+            if (chosen.step > 1) {
+              ctx.strokeStyle = tc.muted || 'rgba(128,128,128,0.5)';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              // Start line at edge of the marker, end near the label box
+              const len = Math.hypot(chosen.dx, chosen.dy);
+              const sx = pt.x + (chosen.dx / len) * (logoSize / 2);
+              const sy = pt.y + (chosen.dy / len) * (logoSize / 2);
+              const ex = pt.x + chosen.dx - (chosen.dx / len) * 2;
+              const ey = pt.y + chosen.dy - (chosen.dy / len) * 2;
+              ctx.moveTo(sx, sy);
+              ctx.lineTo(ex, ey);
+              ctx.stroke();
+            }
+
+            ctx.fillStyle = tc.labelColor;
+            ctx.textAlign = chosen.dir.align;
+            ctx.textBaseline = chosen.dir.baseline;
+            ctx.fillText(text, pt.x + chosen.dx, pt.y + chosen.dy);
             placed.push(chosen.box);
           }
 
