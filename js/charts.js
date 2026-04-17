@@ -5,6 +5,17 @@ let tradeValueChart = null;
 let chartData = [];
 let selectedRounds = new Set([1, 2, 3, 4, 5, 6, 7]);
 
+const NAME_SUFFIXES = new Set(['Jr', 'Jr.', 'Sr', 'Sr.', 'II', 'III', 'IV', 'V']);
+function shortenPlayerName(full) {
+  if (!full) return '';
+  const parts = full.split(/\s+/).filter(Boolean);
+  while (parts.length > 1 && NAME_SUFFIXES.has(parts[parts.length - 1])) {
+    parts.pop();
+  }
+  if (parts.length <= 1) return full;
+  return parts[0][0] + '.' + parts[parts.length - 1];
+}
+
 function getThemeColors() {
   const s = getComputedStyle(document.body);
   return {
@@ -83,6 +94,13 @@ function updatePickScoreChart() {
     const tc = getThemeColors();
     const meanX = filtered.reduce((s, d) => s + d.x, 0) / filtered.length;
 
+    // Scale markers to point count so a full round doesn't overlap
+    const n = filtered.length;
+    const pointRadius = n <= 10 ? 20 : n <= 24 ? 16 : n <= 48 ? 12 : 9;
+    const logoSize = Math.round(pointRadius * 1.4);
+    const fontSize = n <= 24 ? 10 : n <= 48 ? 9 : 8;
+    const labelOffset = pointRadius + 2;
+
     pickScoreChart = new Chart(canvas, {
       type: 'scatter',
       data: {
@@ -91,8 +109,8 @@ function updatePickScoreChart() {
           pointBackgroundColor: filtered.map(d => d.color),
           pointBorderColor: 'rgba(255,255,255,0.3)',
           pointBorderWidth: 1,
-          pointRadius: 20,
-          pointHoverRadius: 24,
+          pointRadius: pointRadius,
+          pointHoverRadius: pointRadius + 4,
         }]
       },
       plugins: [{
@@ -100,33 +118,97 @@ function updatePickScoreChart() {
         afterDatasetsDraw(chart) {
           const { ctx } = chart;
           const meta = chart.getDatasetMeta(0);
+          const chartArea = chart.chartArea;
           ctx.save();
+
+          // First pass: draw logos / point fills
           meta.data.forEach((point, i) => {
             const d = filtered[i];
             if (!d) return;
             const logo = logoImages[d.team];
+            const half = logoSize / 2;
             if (logo) {
-              ctx.drawImage(logo, point.x - 14, point.y - 14, 28, 28);
+              ctx.drawImage(logo, point.x - half, point.y - half, logoSize, logoSize);
             } else {
               ctx.fillStyle = '#fff';
-              ctx.font = 'bold 10px sans-serif';
+              ctx.font = `bold ${fontSize}px sans-serif`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.fillText(d.team, point.x, point.y);
             }
-            // Draw abbreviated name next to point
-            if (d.label) {
-              const parts = d.label.split(' ');
-              const shortName = parts.length > 1
-                ? parts[0][0] + '.' + parts[parts.length - 1]
-                : d.label;
-              ctx.fillStyle = tc.labelColor;
-              ctx.font = 'bold 10px sans-serif';
-              ctx.textAlign = 'left';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(shortName, point.x + 18, point.y);
-            }
           });
+
+          // Second pass: place labels, trying candidate positions to avoid overlap
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          const placed = [];
+          const pad = 2;
+          const diag = Math.round(labelOffset * 0.75);
+
+          // Candidate offsets: {dx, dy, align, baseline}. Tried in order of preference.
+          const candidates = [
+            { dx:  labelOffset, dy: 0,             align: 'left',   baseline: 'middle' },
+            { dx: -labelOffset, dy: 0,             align: 'right',  baseline: 'middle' },
+            { dx:  diag,        dy: -diag,         align: 'left',   baseline: 'bottom' },
+            { dx: -diag,        dy: -diag,         align: 'right',  baseline: 'bottom' },
+            { dx:  diag,        dy:  diag,         align: 'left',   baseline: 'top'    },
+            { dx: -diag,        dy:  diag,         align: 'right',  baseline: 'top'    },
+            { dx:  0,           dy: -labelOffset,  align: 'center', baseline: 'bottom' },
+            { dx:  0,           dy:  labelOffset,  align: 'center', baseline: 'top'    },
+          ];
+
+          function labelBox(px, py, w, h, c) {
+            let x;
+            if (c.align === 'left') x = px + c.dx;
+            else if (c.align === 'right') x = px + c.dx - w;
+            else x = px + c.dx - w / 2;
+            let y;
+            if (c.baseline === 'top') y = py + c.dy;
+            else if (c.baseline === 'bottom') y = py + c.dy - h;
+            else y = py + c.dy - h / 2;
+            return { x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad };
+          }
+
+          function rectsOverlap(a, b) {
+            return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+          }
+
+          function inBounds(b) {
+            return b.x >= chartArea.left && b.x + b.w <= chartArea.right &&
+                   b.y >= chartArea.top  && b.y + b.h <= chartArea.bottom;
+          }
+
+          // Place points with the most extreme x first (edges are easier), leaving
+          // the crowded center for last where space is tightest.
+          const order = meta.data.map((pt, i) => ({ pt, i }))
+            .filter(o => filtered[o.i] && filtered[o.i].label)
+            .sort((a, b) => Math.abs(filtered[b.i].x) - Math.abs(filtered[a.i].x));
+
+          ctx.fillStyle = tc.labelColor;
+          for (const { pt, i } of order) {
+            const d = filtered[i];
+            const text = shortenPlayerName(d.label);
+            const w = ctx.measureText(text).width;
+            const h = fontSize;
+
+            let chosen = null;
+            for (const c of candidates) {
+              const box = labelBox(pt.x, pt.y, w, h, c);
+              if (!inBounds(box)) continue;
+              if (placed.some(p => rectsOverlap(p, box))) continue;
+              chosen = { c, box };
+              break;
+            }
+            if (!chosen) {
+              const c = candidates[0];
+              chosen = { c, box: labelBox(pt.x, pt.y, w, h, c) };
+            }
+
+            ctx.textAlign = chosen.c.align;
+            ctx.textBaseline = chosen.c.baseline;
+            ctx.fillText(text, pt.x + chosen.c.dx, pt.y + chosen.c.dy);
+            placed.push(chosen.box);
+          }
+
           ctx.restore();
         }
       }],
