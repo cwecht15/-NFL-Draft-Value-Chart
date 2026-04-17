@@ -137,12 +137,21 @@ function updatePickScoreChart() {
             }
           });
 
-          // Second pass: place labels. For each point, try 8 directions at
-          // increasing distances; pick the nearest position with no collision.
-          // If the chosen position is far from the point, draw a leader line.
+          // Second pass: place labels. Labels collide with other labels AND with
+          // point markers, so crowded clusters push labels outward until they
+          // find free space. Try 8 directions at growing distances; if the
+          // chosen position is far from the point, draw a leader line.
           ctx.font = `bold ${fontSize}px sans-serif`;
-          const placed = [];
           const pad = 2;
+
+          // Seed occupancy with every point's marker region so labels don't
+          // land on top of neighboring points.
+          const placed = meta.data.map(pt => ({
+            x: pt.x - logoSize / 2 - pad,
+            y: pt.y - logoSize / 2 - pad,
+            w: logoSize + 2 * pad,
+            h: logoSize + 2 * pad,
+          }));
 
           // 8 unit-vector directions around the point
           const directions = [
@@ -156,8 +165,9 @@ function updatePickScoreChart() {
             { ux:  0, uy:  1, align: 'center', baseline: 'top'    },
           ];
 
-          // Distances to try (in multiples of labelOffset)
-          const distanceSteps = [1, 1.75, 2.75, 4, 5.5];
+          // Distances to try (in multiples of labelOffset). Reach far when the
+          // cluster is dense.
+          const distanceSteps = [1, 1.8, 3, 4.5, 6.5, 9, 12];
 
           function labelBox(px, py, w, h, dx, dy, align, baseline) {
             let x;
