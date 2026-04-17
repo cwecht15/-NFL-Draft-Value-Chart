@@ -17,6 +17,22 @@ function findPlayerByOverall(overall) {
   return BIG_BOARD.find(p => p.overall === overall);
 }
 
+function findPlayerByName(name) {
+  if (!name) return null;
+  return BIG_BOARD.find(p => p.player === name);
+}
+
+// Several players can share the same `overall` rank in BIG_BOARD, so prefer
+// name-based lookup. Fall back to overall for picks saved before playerName
+// was tracked on on-board picks.
+function findPlayerForPick(pick) {
+  if (!pick) return null;
+  const byName = findPlayerByName(pick.playerName);
+  if (byName) return byName;
+  if (pick.playerOverall) return findPlayerByOverall(pick.playerOverall);
+  return null;
+}
+
 function getPickScoreColor(pickScore) {
   if (pickScore > 200) return '#1a7a1a';
   if (pickScore > 100) return '#2d9e2d';

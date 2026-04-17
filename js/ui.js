@@ -5,17 +5,18 @@ let tradeOverrides = {};
 // Track trade details: {pickNumber: {teamFrom, teamTo, picksGivenUp: [pickNums], picksReceived: [pickNums]}}
 let tradeDetails = {};
 
-function getDraftedOveralls() {
-  return new Set(
-    Object.values(currentPicks)
-      .filter(p => p.playerOverall)
-      .map(p => p.playerOverall)
-  );
+function getDraftedPlayerNames() {
+  const names = new Set();
+  for (const pick of Object.values(currentPicks)) {
+    const player = findPlayerForPick(pick);
+    if (player) names.add(player.player);
+  }
+  return names;
 }
 
 function getAvailablePlayers() {
-  const drafted = getDraftedOveralls();
-  return BIG_BOARD.filter(p => !drafted.has(p.overall));
+  const drafted = getDraftedPlayerNames();
+  return BIG_BOARD.filter(p => !drafted.has(p.player));
 }
 
 function getCurrentPickNumber() {
@@ -107,7 +108,7 @@ function renderDraftBoard(picks) {
     }
 
     if (pick) {
-      const player = pick.playerOverall ? findPlayerByOverall(pick.playerOverall) : null;
+      const player = findPlayerForPick(pick);
       const offBoard = !player;
       const effScore = player ? player.score : SCORE_PARAMS.minScore;
       const playerName = player ? player.player : (pick.playerName || 'Off Board');
@@ -324,8 +325,9 @@ function renderAvailablePlayers() {
 
   const html = filtered.slice(0, 50).map(p => {
     const value = getPlayerValue(p.score).toFixed(0);
+    const idx = BIG_BOARD.indexOf(p);
     return `
-      <div class="available-player" onclick="selectPlayer(${p.overall})">
+      <div class="available-player" onclick="selectPlayer(${idx})">
         <span class="ap-rank">#${p.overall}</span>
         <span class="ap-name">${p.player}</span>
         <span class="ap-pos">${p.position}</span>
@@ -361,11 +363,13 @@ function showOffBoardPreview(name) {
   preview.style.display = 'block';
 }
 
-function selectPlayer(overall) {
-  const player = findPlayerByOverall(overall);
+// idx is a BIG_BOARD array index (unique per player, unlike `overall` which
+// can tie across players).
+function selectPlayer(idx) {
+  const player = BIG_BOARD[idx];
   if (!player) return;
   document.getElementById('player-input').value = player.player;
-  document.getElementById('selected-overall').value = overall;
+  document.getElementById('selected-overall').value = idx;
 
   const preview = document.getElementById('pick-preview');
   const slotVal = getSlotValue(currentPickNumber);
@@ -391,16 +395,21 @@ function handleSubmitPick() {
   let playerName = null;
   let isOffBoard = false;
 
-  if (selectedOverall) {
-    playerOverall = parseInt(selectedOverall);
+  // selectedOverall now holds a BIG_BOARD array index (selectPlayer sets it
+  // that way). Fall back to name match if the hidden field is empty.
+  let match = null;
+  if (selectedOverall !== '') {
+    match = BIG_BOARD[parseInt(selectedOverall)];
+  }
+  if (!match) {
+    match = BIG_BOARD.find(p => p.player.toLowerCase() === playerInput.toLowerCase());
+  }
+  if (match) {
+    playerOverall = match.overall;
+    playerName = match.player;
   } else {
-    const match = BIG_BOARD.find(p => p.player.toLowerCase() === playerInput.toLowerCase());
-    if (match) {
-      playerOverall = match.overall;
-    } else {
-      playerName = playerInput;
-      isOffBoard = true;
-    }
+    playerName = playerInput;
+    isOffBoard = true;
   }
 
   const pickData = submitPick(currentPickNumber, team, playerOverall, playerName, isOffBoard);

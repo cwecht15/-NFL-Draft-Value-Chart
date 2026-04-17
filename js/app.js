@@ -63,10 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const playerInput = document.getElementById('player-input');
   playerInput.addEventListener('input', () => {
     const val = playerInput.value;
-    const match = BIG_BOARD.find(p => p.player === val);
-    if (match) {
-      document.getElementById('selected-overall').value = match.overall;
-      selectPlayer(match.overall);
+    const idx = BIG_BOARD.findIndex(p => p.player === val);
+    if (idx >= 0) {
+      selectPlayer(idx);
     } else {
       document.getElementById('selected-overall').value = '';
       if (val.trim()) {

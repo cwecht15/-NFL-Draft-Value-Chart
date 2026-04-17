@@ -48,7 +48,13 @@ def fetch_board():
             'posRank': pos_rank,
         })
 
+    # Two players can tie on the sheet's Overall column; reassign to a unique
+    # rank so each player gets a distinct overall. Stable sort keeps the sheet's
+    # relative order for ties. (The JS side prefers name-based lookup now, but
+    # keeping overalls unique is the right invariant to preserve.)
     players.sort(key=lambda p: p['overall'])
+    for i, p in enumerate(players, start=1):
+        p['overall'] = i
     return players
 
 def update_data_js(players):

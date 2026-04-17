@@ -32,8 +32,7 @@ function getThemeColors() {
 function updateCharts(picks) {
   chartData = [];
   for (const [pickNum, pick] of Object.entries(picks)) {
-    if (!pick.playerOverall) continue;
-    const player = findPlayerByOverall(pick.playerOverall);
+    const player = findPlayerForPick(pick);
     if (!player) continue;
     const pNum = parseInt(pickNum);
     const round = getRoundForPick(pNum);
