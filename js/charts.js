@@ -401,7 +401,7 @@ function updateDraftGrades() {
     const teamColor = TEAM_COLORS[team] || '#666';
     const avg = s.picks > 0 ? (s.total / s.picks).toFixed(0) : 0;
     return `
-      <div class="grade-card">
+      <div class="grade-card" data-team="${team}" title="Click for full report">
         <div class="grade-letter" style="background:${grade.color}">${grade.letter}</div>
         <div class="grade-team" style="border-left:4px solid ${teamColor}">
           <img src="logos/${team}.png" alt="${team}" class="team-logo" onerror="this.style.display='none'">
@@ -416,6 +416,182 @@ function updateDraftGrades() {
   }).join('');
 
   container.innerHTML = html;
+
+  container.querySelectorAll('.grade-card[data-team]').forEach(card => {
+    card.addEventListener('click', () => openTeamReport(card.dataset.team));
+  });
+}
+
+// ── Team Draft Report ──
+function computeTeamReport(team) {
+  // Picks this team made
+  const madePicks = [];
+  for (const [pickStr, pick] of Object.entries(currentPicks)) {
+    if (pick.team !== team) continue;
+    const pNum = parseInt(pickStr);
+    const player = findPlayerForPick(pick);
+    const slotVal = getSlotValue(pNum);
+    const effScore = player ? player.score : SCORE_PARAMS.minScore;
+    const playerVal = getPlayerValue(effScore);
+    const pickScore = playerVal - slotVal;
+    madePicks.push({
+      pickNum: pNum,
+      round: getRoundForPick(pNum),
+      player,
+      playerName: player ? player.player : (pick.playerName || 'Off Board'),
+      offBoard: !player,
+      slotVal,
+      playerVal,
+      pickScore,
+    });
+  }
+  madePicks.sort((a, b) => a.pickNum - b.pickNum);
+
+  // Trades involving this team
+  const trades = [];
+  for (const [pickStr, trade] of Object.entries(tradeDetails)) {
+    const { teamFrom, teamTo } = trade;
+    if (teamFrom !== team && teamTo !== team) continue;
+    const pNum = parseInt(pickStr);
+
+    let givenUpValue = 0;
+    (trade.picksGivenUp || []).forEach(p => { givenUpValue += getSlotValue(p); });
+    (trade.futurePicksGivenUp || []).forEach(fp => {
+      givenUpValue += getFuturePickValue(fp.round, fp.year - 2026, teamTo, fp.orig);
+    });
+    let receivedValue = getSlotValue(pNum);
+    (trade.picksReceived || []).forEach(p => { receivedValue += getSlotValue(p); });
+    (trade.futurePicksReceived || []).forEach(fp => {
+      receivedValue += getFuturePickValue(fp.round, fp.year - 2026, teamFrom, fp.orig);
+    });
+
+    const isAcquirer = teamTo === team;
+    // Net from this team's perspective: positive = this team gained value
+    const net = isAcquirer ? (receivedValue - givenUpValue) : (givenUpValue - receivedValue);
+    trades.push({
+      pickNum: pNum,
+      role: isAcquirer ? 'acquired' : 'traded away',
+      counterparty: isAcquirer ? teamFrom : teamTo,
+      sent: isAcquirer
+        ? [...(trade.picksGivenUp || []).map(p => `#${p}`), ...(trade.futurePicksGivenUp || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)]
+        : [`#${pNum}`, ...(trade.picksReceived || []).map(p => `#${p}`), ...(trade.futurePicksReceived || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)],
+      received: isAcquirer
+        ? [`#${pNum}`, ...(trade.picksReceived || []).map(p => `#${p}`), ...(trade.futurePicksReceived || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)]
+        : [...(trade.picksGivenUp || []).map(p => `#${p}`), ...(trade.futurePicksGivenUp || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)],
+      sentTotal: isAcquirer ? givenUpValue : receivedValue,
+      receivedTotal: isAcquirer ? receivedValue : givenUpValue,
+      net,
+    });
+  }
+  trades.sort((a, b) => a.pickNum - b.pickNum);
+
+  // Remaining picks (current + future)
+  const inv = getTeamAvailablePicks(team);
+
+  // Totals
+  const totalSurplus = madePicks.reduce((s, p) => s + p.pickScore, 0);
+  const tradeNet = trades.reduce((s, t) => s + t.net, 0);
+  const weighted = madePicks.reduce((s, p) => s + p.pickScore * (p.slotVal / 1000), 0);
+  const grade = getDraftGrade(weighted);
+
+  return { team, madePicks, trades, inv, totalSurplus, tradeNet, weighted, grade };
+}
+
+function openTeamReport(team) {
+  const modal = document.getElementById('team-report-modal');
+  const content = document.getElementById('team-report-content');
+  const r = computeTeamReport(team);
+  const teamColor = TEAM_COLORS[team] || '#666';
+
+  const picksRows = r.madePicks.length ? r.madePicks.map(p => {
+    const color = getPickScoreColor(p.pickScore);
+    const label = `${p.pickScore > 0 ? '+' : ''}${Math.round(p.pickScore)}`;
+    const details = p.offBoard
+      ? '<em>Off Board (min value)</em>'
+      : `${p.player.position} - ${p.player.school} | Score ${p.player.score}${p.player.posRank ? ' | ' + p.player.posRank : ''}`;
+    return `
+      <tr>
+        <td>#${p.pickNum}</td>
+        <td>R${p.round}</td>
+        <td><strong>${p.playerName}</strong><div class="report-sub">${details}</div></td>
+        <td class="num">${p.slotVal.toFixed(0)}</td>
+        <td class="num">${p.playerVal.toFixed(0)}</td>
+        <td class="num" style="color:${color};font-weight:bold">${label}</td>
+      </tr>`;
+  }).join('') : `<tr><td colspan="6" class="report-empty">No picks yet</td></tr>`;
+
+  const tradesRows = r.trades.length ? r.trades.map(t => {
+    const cpColor = TEAM_COLORS[t.counterparty] || '#666';
+    const netColor = t.net > 0 ? 'var(--text-value)' : t.net < 0 ? 'var(--btn-danger)' : 'var(--text-secondary)';
+    return `
+      <tr>
+        <td>#${t.pickNum}</td>
+        <td>${t.role} <span style="color:${cpColor}">${t.counterparty}</span></td>
+        <td>Sent: ${t.sent.join(', ') || '—'} <span class="report-sub">(${Math.round(t.sentTotal)})</span></td>
+        <td>Got: ${t.received.join(', ') || '—'} <span class="report-sub">(${Math.round(t.receivedTotal)})</span></td>
+        <td class="num" style="color:${netColor};font-weight:bold">${t.net > 0 ? '+' : ''}${Math.round(t.net)}</td>
+      </tr>`;
+  }).join('') : `<tr><td colspan="5" class="report-empty">No trades</td></tr>`;
+
+  const remainingCurrent = inv => inv.current.map(p => `#${p} (R${getRoundForPick(p)}, ${Math.round(getSlotValue(p))})`).join(', ');
+  const remainingFuture = (year, inv) => {
+    const picks = inv.future[year] || [];
+    if (!picks.length) return '';
+    const yearsOut = year - 2026;
+    return picks.map(fp => {
+      const via = fp.orig && fp.orig !== team ? ` via ${fp.orig}` : '';
+      const v = Math.round(getFuturePickValue(fp.round, yearsOut, team, fp.orig));
+      return `${year} R${fp.round}${via} (~${v})`;
+    }).join(', ');
+  };
+  const capital = Math.round(getTeamDraftCapital(team));
+
+  content.innerHTML = `
+    <div class="team-report-header" style="border-color:${teamColor}">
+      <div class="team-report-grade" style="background:${r.grade.color}">${r.grade.letter}</div>
+      <div class="team-report-title">
+        <img src="logos/${team}.png" alt="${team}" onerror="this.style.display='none'">
+        <h2 style="color:${teamColor}">${team} Draft Report</h2>
+      </div>
+      <div class="team-report-summary">
+        <div><span class="report-label">Picks made</span><strong>${r.madePicks.length}</strong></div>
+        <div><span class="report-label">Pick surplus</span><strong style="color:${r.totalSurplus >= 0 ? 'var(--text-value)' : 'var(--btn-danger)'}">${r.totalSurplus > 0 ? '+' : ''}${Math.round(r.totalSurplus)}</strong></div>
+        <div><span class="report-label">Trade net</span><strong style="color:${r.tradeNet >= 0 ? 'var(--text-value)' : 'var(--btn-danger)'}">${r.tradeNet > 0 ? '+' : ''}${Math.round(r.tradeNet)}</strong></div>
+        <div><span class="report-label">Remaining capital</span><strong>${capital.toLocaleString()}</strong></div>
+      </div>
+    </div>
+
+    <section class="report-section">
+      <h3>Picks</h3>
+      <table class="report-table">
+        <thead><tr><th>#</th><th>R</th><th>Player</th><th class="num">Slot</th><th class="num">Value</th><th class="num">Score</th></tr></thead>
+        <tbody>${picksRows}</tbody>
+      </table>
+    </section>
+
+    <section class="report-section">
+      <h3>Trades</h3>
+      <table class="report-table">
+        <thead><tr><th>Pick</th><th>Action</th><th>Sent</th><th>Received</th><th class="num">Net</th></tr></thead>
+        <tbody>${tradesRows}</tbody>
+      </table>
+    </section>
+
+    <section class="report-section">
+      <h3>Remaining Draft Capital</h3>
+      <div class="report-list">
+        <div><strong>2026 current:</strong> ${remainingCurrent(r.inv) || '<em>None</em>'}</div>
+        ${remainingFuture(2027, r.inv) ? `<div><strong>2027:</strong> ${remainingFuture(2027, r.inv)}</div>` : ''}
+        ${remainingFuture(2028, r.inv) ? `<div><strong>2028:</strong> ${remainingFuture(2028, r.inv)}</div>` : ''}
+      </div>
+    </section>
+  `;
+
+  modal.style.display = 'flex';
+}
+
+function closeTeamReport() {
+  document.getElementById('team-report-modal').style.display = 'none';
 }
 
 // ── Draft Capital Remaining ──

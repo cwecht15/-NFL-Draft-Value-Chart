@@ -130,6 +130,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Init round filters on charts page
   initRoundFilters();
 
+  // Team report modal
+  const reportModal = document.getElementById('team-report-modal');
+  document.getElementById('team-report-close').addEventListener('click', closeTeamReport);
+  reportModal.addEventListener('click', (e) => { if (e.target === reportModal) closeTeamReport(); });
+
   // Ctrl+Enter to submit
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.ctrlKey) handleSubmitPick();
