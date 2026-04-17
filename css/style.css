@@ -1007,7 +1007,7 @@ body {
 }
 
 /* ── Team Report Modal ── */
-.team-report-modal { width: 880px; max-width: 96vw; }
+.team-report-modal { width: 1100px; max-width: 98vw; }
 .team-report-header {
   padding-bottom: 14px;
   margin-bottom: 14px;
@@ -1017,8 +1017,9 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-bottom: 12px;
+  min-width: 0;
 }
 .team-report-grade {
   width: 56px;
@@ -1034,7 +1035,7 @@ body {
   flex-shrink: 0;
 }
 .team-report-logo { width: 40px; height: 40px; flex-shrink: 0; }
-.team-report-identity h2 { margin: 0; font-size: 1.3rem; flex: 1; min-width: 0; }
+.team-report-identity h2 { margin: 0; font-size: 1.3rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .team-report-summary {
   display: flex;
   flex-wrap: wrap;
@@ -1049,6 +1050,41 @@ body {
 }
 .report-stat strong { font-size: 1.1rem; color: var(--text-primary); }
 .report-label { color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Trade cards inside the team report */
+.trade-report-list { display: flex; flex-direction: column; gap: 10px; }
+.trade-report-card {
+  background: var(--bg-picked);
+  border: 1px solid var(--border-secondary);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.trade-report-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.trade-report-title { font-size: 0.9rem; color: var(--text-primary); }
+.trade-report-net { font-weight: 700; font-size: 0.95rem; }
+.trade-report-line {
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.85rem;
+  padding: 2px 0;
+}
+.trade-report-label {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.trade-report-picks { color: var(--text-primary); }
+.trade-report-total { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .report-section { margin-top: 16px; }
 .report-section h3 {
   color: var(--text-heading);

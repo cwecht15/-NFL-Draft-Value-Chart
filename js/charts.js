@@ -520,28 +520,35 @@ function openTeamReport(team) {
       </tr>`;
   }).join('') : `<tr><td colspan="6" class="report-empty">No picks yet</td></tr>`;
 
-  const tradesRows = r.trades.length ? r.trades.map(t => {
+  const tradesHtml = r.trades.length ? r.trades.map(t => {
     const cpColor = TEAM_COLORS[t.counterparty] || '#666';
     const netColor = t.net > 0 ? 'var(--text-value)' : t.net < 0 ? 'var(--btn-danger)' : 'var(--text-secondary)';
     return `
-      <tr>
-        <td>#${t.pickNum}</td>
-        <td>${t.role} <span style="color:${cpColor}">${t.counterparty}</span></td>
-        <td>Sent: ${t.sent.join(', ') || '—'} <span class="report-sub">(${Math.round(t.sentTotal)})</span></td>
-        <td>Got: ${t.received.join(', ') || '—'} <span class="report-sub">(${Math.round(t.receivedTotal)})</span></td>
-        <td class="num" style="color:${netColor};font-weight:bold">${t.net > 0 ? '+' : ''}${Math.round(t.net)}</td>
-      </tr>`;
-  }).join('') : `<tr><td colspan="5" class="report-empty">No trades</td></tr>`;
+      <div class="trade-report-card">
+        <div class="trade-report-head">
+          <span class="trade-report-title">Pick #${t.pickNum} — ${t.role} <strong style="color:${cpColor}">${t.counterparty}</strong></span>
+          <span class="trade-report-net" style="color:${netColor}">Net ${t.net > 0 ? '+' : ''}${Math.round(t.net)}</span>
+        </div>
+        <div class="trade-report-line">
+          <span class="trade-report-label">Sent</span>
+          <span class="trade-report-picks">${t.sent.join(', ') || '—'}</span>
+          <span class="trade-report-total">${Math.round(t.sentTotal)}</span>
+        </div>
+        <div class="trade-report-line">
+          <span class="trade-report-label">Got</span>
+          <span class="trade-report-picks">${t.received.join(', ') || '—'}</span>
+          <span class="trade-report-total">${Math.round(t.receivedTotal)}</span>
+        </div>
+      </div>`;
+  }).join('') : `<div class="report-empty">No trades</div>`;
 
-  const remainingCurrent = inv => inv.current.map(p => `#${p} (R${getRoundForPick(p)}, ${Math.round(getSlotValue(p))})`).join(', ');
+  const remainingCurrent = inv => inv.current.map(p => `#${p} (R${getRoundForPick(p)})`).join(', ');
   const remainingFuture = (year, inv) => {
     const picks = inv.future[year] || [];
     if (!picks.length) return '';
-    const yearsOut = year - 2026;
     return picks.map(fp => {
       const via = fp.orig && fp.orig !== team ? ` via ${fp.orig}` : '';
-      const v = Math.round(getFuturePickValue(fp.round, yearsOut, team, fp.orig));
-      return `${year} R${fp.round}${via} (~${v})`;
+      return `R${fp.round}${via}`;
     }).join(', ');
   };
   const capital = Math.round(getTeamDraftCapital(team));
@@ -571,10 +578,7 @@ function openTeamReport(team) {
 
     <section class="report-section">
       <h3>Trades</h3>
-      <table class="report-table">
-        <thead><tr><th>Pick</th><th>Action</th><th>Sent</th><th>Received</th><th class="num">Net</th></tr></thead>
-        <tbody>${tradesRows}</tbody>
-      </table>
+      <div class="trade-report-list">${tradesHtml}</div>
     </section>
 
     <section class="report-section">
