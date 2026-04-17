@@ -548,16 +548,16 @@ function openTeamReport(team) {
 
   content.innerHTML = `
     <div class="team-report-header" style="border-color:${teamColor}">
-      <div class="team-report-grade" style="background:${r.grade.color}">${r.grade.letter}</div>
-      <div class="team-report-title">
-        <img src="logos/${team}.png" alt="${team}" onerror="this.style.display='none'">
+      <div class="team-report-identity">
+        <div class="team-report-grade" style="background:${r.grade.color}">${r.grade.letter}</div>
+        <img class="team-report-logo" src="logos/${team}.png" alt="${team}" onerror="this.style.display='none'">
         <h2 style="color:${teamColor}">${team} Draft Report</h2>
       </div>
       <div class="team-report-summary">
-        <div><span class="report-label">Picks made</span><strong>${r.madePicks.length}</strong></div>
-        <div><span class="report-label">Pick surplus</span><strong style="color:${r.totalSurplus >= 0 ? 'var(--text-value)' : 'var(--btn-danger)'}">${r.totalSurplus > 0 ? '+' : ''}${Math.round(r.totalSurplus)}</strong></div>
-        <div><span class="report-label">Trade net</span><strong style="color:${r.tradeNet >= 0 ? 'var(--text-value)' : 'var(--btn-danger)'}">${r.tradeNet > 0 ? '+' : ''}${Math.round(r.tradeNet)}</strong></div>
-        <div><span class="report-label">Remaining capital</span><strong>${capital.toLocaleString()}</strong></div>
+        <div class="report-stat"><span class="report-label">Picks</span><strong>${r.madePicks.length}</strong></div>
+        <div class="report-stat"><span class="report-label">Pick Surplus</span><strong style="color:${r.totalSurplus >= 0 ? 'var(--text-value)' : 'var(--btn-danger)'}">${r.totalSurplus > 0 ? '+' : ''}${Math.round(r.totalSurplus)}</strong></div>
+        <div class="report-stat"><span class="report-label">Trade Net</span><strong style="color:${r.tradeNet >= 0 ? 'var(--text-value)' : 'var(--btn-danger)'}">${r.tradeNet > 0 ? '+' : ''}${Math.round(r.tradeNet)}</strong></div>
+        <div class="report-stat"><span class="report-label">Capital Left</span><strong>${capital.toLocaleString()}</strong></div>
       </div>
     </div>
 
