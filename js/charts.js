@@ -473,11 +473,11 @@ function computeTeamReport(team) {
       role: isAcquirer ? 'acquired' : 'traded away',
       counterparty: isAcquirer ? teamFrom : teamTo,
       sent: isAcquirer
-        ? [...(trade.picksGivenUp || []).map(p => `#${p}`), ...(trade.futurePicksGivenUp || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)]
-        : [`#${pNum}`, ...(trade.picksReceived || []).map(p => `#${p}`), ...(trade.futurePicksReceived || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)],
+        ? [...(trade.picksGivenUp || []).map(p => `#${p} R${getRoundForPick(p)}`), ...(trade.futurePicksGivenUp || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)]
+        : [`#${pNum} R${getRoundForPick(pNum)}`, ...(trade.picksReceived || []).map(p => `#${p} R${getRoundForPick(p)}`), ...(trade.futurePicksReceived || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)],
       received: isAcquirer
-        ? [`#${pNum}`, ...(trade.picksReceived || []).map(p => `#${p}`), ...(trade.futurePicksReceived || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)]
-        : [...(trade.picksGivenUp || []).map(p => `#${p}`), ...(trade.futurePicksGivenUp || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)],
+        ? [`#${pNum} R${getRoundForPick(pNum)}`, ...(trade.picksReceived || []).map(p => `#${p} R${getRoundForPick(p)}`), ...(trade.futurePicksReceived || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)]
+        : [...(trade.picksGivenUp || []).map(p => `#${p} R${getRoundForPick(p)}`), ...(trade.futurePicksGivenUp || []).map(fp => `'${(fp.year+'').slice(2)} R${fp.round}${fp.orig && fp.orig !== team ? ' via ' + fp.orig : ''}`)],
       sentTotal: isAcquirer ? givenUpValue : receivedValue,
       receivedTotal: isAcquirer ? receivedValue : givenUpValue,
       net,
