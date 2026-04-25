@@ -490,7 +490,7 @@ const BIG_BOARD = [
   {player:'Le\'Veon Moss',school:'Texas A&M',position:'RB',score:70.1,overall:178,posRank:'RB13'},
 ];
 
-const SCORE_PARAMS = {minScore:70.1,maxScore:94.4,minValue:600,maxValue:3100,k:0.1536};
+const SCORE_PARAMS = {minScore:70.1,maxScore:94.4,minValue:168.0,maxValue:3100,k:0.1818};
 
 const TEAM_COLORS = {ARZ:'#97233F',ATL:'#A71930',BLT:'#241773',BUF:'#00338D',CAR:'#0085CA',CHI:'#00143F',CIN:'#FB4F14',CLV:'#FB4F14',DAL:'#B0B7BC',DEN:'#002244',DET:'#046EB4',GB:'#24423C',HST:'#C9243F',IND:'#003D79',JAX:'#136677',KC:'#CA2430',LA:'#002147',LAC:'#2072BA',LV:'#C4C9CC',MIA:'#0091A0',MIN:'#4F2E84',NE:'#0A2342',NO:'#A08A58',NYG:'#192E6C',NYJ:'#203731',PHI:'#014A53',PIT:'#FFC20E',SEA:'#7AC142',SF:'#C9243F',TB:'#D40909',TEN:'#4095D1',WAS:'#FFC20F'};
 
